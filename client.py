@@ -2,7 +2,10 @@ import socket
 import json
 import struct
 import random
+from os import path
 from threading import Thread
+import mutagen
+
 
 
 class Client(Thread):
@@ -24,7 +27,29 @@ class Client(Thread):
             self.request_to_send(receiving_client_address)
 
     def request_to_send(self, receiving_client_address):
-        self.tcp_soc.sendall(b'RequestToSend')
+        request = b'RequestToSend'
+        audio = open('/home/niloo/Music/dgdg.mp3', 'rb')
+        audio_name = path.basename(audio.name)
+        audio_size = path.getsize(audio.name)
+        audio_name, audio_format = path.splitext(audio_name)
+        audio_format = audio_format[1:]
+        audio.close()
+        audio = mutagen.File('/home/niloo/Music/dgdg.mp3')
+        audio_bitrate = audio.info.bitrate
+        print(audio_format, audio_name, audio_size, audio_bitrate)
+        msg = {'request': request,
+               'to': receiving_client_address,
+               'audio_name': audio_name,
+               'audio_size': audio_size,
+               'audio_format': audio_format,
+               'audio_bitrate': audio_bitrate}
+        packet = json.dumps(msg)
+        length = struct.pack('!I', len(packet))
+        packet = length + packet
+        self.tcp_soc.sendall(packet)
+
+
+
 
     def get_client_list(self):
         self.tcp_soc.sendall(b'GetClintList')
