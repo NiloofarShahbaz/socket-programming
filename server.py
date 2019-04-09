@@ -86,8 +86,8 @@ class Server(Thread):
                 packet = json.dumps(packet).encode('utf-8')
                 length = struct.pack('!I', len(packet))
                 packet = length + packet
-                print(packet)
-                self.connection_list[to][0].sendall(packet)
+                dest=(to[0],to[1])
+                self.connection_list[dest][0].sendall(packet)
 
 
 
