@@ -1,6 +1,7 @@
 import socket
-import pickle
+import json
 import struct
+import random
 from threading import Thread
 
 
@@ -18,9 +19,15 @@ class Client(Thread):
 
     def send(self):
         client_list = self.get_client_list()
+        if len(client_list):
+            receiving_client_address = random.choice(client_list)
+            self.request_to_send(receiving_client_address)
+
+    def request_to_send(self, receiving_client_address):
+        self.tcp_soc.sendall(b'RequestToSend')
 
     def get_client_list(self):
-        self.tcp_soc.sendall(b'CLIENT LIST')
+        self.tcp_soc.sendall(b'GetClintList')
 
         buf = b''
         while len(buf) < 4:
@@ -30,11 +37,10 @@ class Client(Thread):
         buf = b''
         while len(buf) < length:
             buf += self.tcp_soc.recv(length - len(buf))
-        client_list = pickle.loads(buf)
+        client_list = json.loads(buf.decode('utf-8')).get('ReplyClientList')
 
-        print(client_list)
+        print('ClientList : ', client_list)
         return client_list
-
 
     def run(self):
         if self.sendFlag:

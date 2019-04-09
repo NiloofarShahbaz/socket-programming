@@ -3,14 +3,12 @@ from server import Server
 from client import Client
 from threading import Thread
 
-host = '127.0.0.1'
-port = 1041
-
 server = Server()
-client = Client(host, port)
+client1 = Client(server.host, server.port)
+client2 = Client(server.host, server.port)
 
 server.start()
-client.start()
-
+client1.start()
+client2.start()
 
 

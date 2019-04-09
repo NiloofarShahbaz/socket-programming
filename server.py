@@ -2,8 +2,9 @@ import socket
 import pyaudio
 from threading import Thread
 import traceback
-import pickle
+import json
 import struct
+from copy import deepcopy
 
 
 class Server(Thread):
@@ -24,25 +25,27 @@ class Server(Thread):
         print("TCP Socket now listening")
 
     def run(self):
-        connection, client_address = self.tcp_soc.accept()
-        self.client_list.append(client_address)
-        ip, port = str(client_address[0]), str(client_address[1])
-        print("Connected with " + ip + ":" + port)
+        while True:
+            connection, client_address = self.tcp_soc.accept()
+            self.client_list.append(client_address)
+            print("Connected with " + client_address[0] + ":" + str(client_address[1]))
 
-        try:
-            Thread(target=self.run_thread, args=(connection, ip, port)).start()
-        except:
-            print("Thread did not start.")
-            traceback.print_exc()
+            try:
+                Thread(target=self.run_thread, args=(connection, client_address)).start()
+            except:
+                print("Thread did not start.")
+                traceback.print_exc()
 
-    def run_thread(self, connection, ip, port):
+    def run_thread(self, connection, client_address):
         is_active = True
 
         while is_active:
             msg = connection.recv(1024)
-            if msg == b'CLIENT LIST':
-                print(self.client_list)
-                packet = pickle.dumps(self.client_list)
+            if msg == b'GetClintList':
+                print(client_address[0], str(client_address[1]), ' : <GetClintList>')
+                client_list_copy = deepcopy(self.client_list)
+                client_list_copy.remove(client_address)
+                packet = json.dumps({'ReplyClientList': client_list_copy}).encode('utf-8')
                 length = struct.pack('!I', len(packet))
                 packet = length + packet
                 connection.sendall(packet)
