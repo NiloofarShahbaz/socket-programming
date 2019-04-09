@@ -50,6 +50,18 @@ class Client(Thread):
         length = struct.pack('!I', len(packet))
         packet = length + packet
         self.tcp_soc.sendall(packet)
+        buf = b''
+        while len(buf) < 4:
+            buf += self.tcp_soc.recv(4 - len(buf))
+        length = struct.unpack('!I', buf)[0]
+
+        buf = b''
+        while len(buf) < length:
+            buf += self.tcp_soc.recv(length - len(buf))
+        client_answer = json.loads(buf.decode('utf-8')).get('answer')
+        print("answer",client_answer)
+
+        return client_answer
 
 
     def get_request(self):
@@ -64,6 +76,13 @@ class Client(Thread):
         client_request = json.loads(buf.decode('utf-8'))
 
         print('ClientRequest : ', client_request)
+        msg = {'request': 'RequestAnswer',
+               'answer': 'accept',
+               'to': client_request.get('from')}
+        packet = json.dumps(msg).encode('utf-8')
+        length = struct.pack('!I', len(packet))
+        packet = length + packet
+        self.tcp_soc.sendall(packet)
         return client_request
 
 

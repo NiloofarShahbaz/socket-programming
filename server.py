@@ -53,7 +53,7 @@ class Server(Thread):
             while len(buf) < length:
                 buf += connection.recv(length - len(buf))
             msg = json.loads(buf.decode('utf-8')).get('request')
-            print(msg)
+            print("msg",msg)
             # msg = connection.recv(1024)
 
             if msg == 'GetClintList':
@@ -66,7 +66,7 @@ class Server(Thread):
                 print(packet)
                 connection.sendall(packet)
 
-            else:
+            if msg == 'RequestToSend':
                 # buf = b''
                 # while len(buf) < 4:
                 #     buf += connection.recv(4 - len(buf))
@@ -78,15 +78,24 @@ class Server(Thread):
                 # while len(buf) < length:
                 #     buf += connection.recv(length - len(buf))
                 packet = json.loads(buf.decode('utf-8'))
-                print("here",packet)
                 to = packet.pop('to')
                 print("dest",to)
                 packet['from'] = client_address
-                print("request : ",packet)
                 packet = json.dumps(packet).encode('utf-8')
                 length = struct.pack('!I', len(packet))
                 packet = length + packet
                 dest=(to[0],to[1])
+                self.connection_list[dest][0].sendall(packet)
+
+            if msg == 'RequestAnswer':
+                packet = json.loads(buf.decode('utf-8'))
+                to = packet.pop('to')
+                print("dest", to)
+                packet['from'] = client_address
+                packet = json.dumps(packet).encode('utf-8')
+                length = struct.pack('!I', len(packet))
+                packet = length + packet
+                dest = (to[0], to[1])
                 self.connection_list[dest][0].sendall(packet)
 
 
