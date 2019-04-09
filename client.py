@@ -26,15 +26,18 @@ class Client(Thread):
             receiving_client_address = random.choice(client_list)
             self.request_to_send(receiving_client_address)
 
+    def recive(self):
+        self.get_request()
+
     def request_to_send(self, receiving_client_address):
-        request = b'RequestToSend'
-        audio = open('/home/niloo/Music/dgdg.mp3', 'rb')
+        request = 'RequestToSend'
+        audio = open('dgdg.mp3', 'rb')
         audio_name = path.basename(audio.name)
         audio_size = path.getsize(audio.name)
         audio_name, audio_format = path.splitext(audio_name)
         audio_format = audio_format[1:]
         audio.close()
-        audio = mutagen.File('/home/niloo/Music/dgdg.mp3')
+        audio = mutagen.File('dgdg.mp3')
         audio_bitrate = audio.info.bitrate
         print(audio_format, audio_name, audio_size, audio_bitrate)
         msg = {'request': request,
@@ -43,16 +46,34 @@ class Client(Thread):
                'audio_size': audio_size,
                'audio_format': audio_format,
                'audio_bitrate': audio_bitrate}
-        packet = json.dumps(msg)
+        packet = json.dumps(msg).encode('utf-8')
         length = struct.pack('!I', len(packet))
         packet = length + packet
         self.tcp_soc.sendall(packet)
 
 
+    def get_request(self):
+        buf = b''
+        while len(buf) < 4:
+            buf += self.tcp_soc.recv(4 - len(buf))
+        length = struct.unpack('!I', buf)[0]
+
+        buf = b''
+        while len(buf) < length:
+            buf += self.tcp_soc.recv(length - len(buf))
+        client_request = json.loads(buf.decode('utf-8'))
+
+        print('ClientRequest : ', client_request)
+        return client_request
 
 
     def get_client_list(self):
-        self.tcp_soc.sendall(b'GetClintList')
+        # self.tcp_soc.sendall(b'GetClintList')
+        msg = {'request': 'GetClintList'}
+        packet = json.dumps(msg).encode('utf-8')
+        length = struct.pack('!I', len(packet))
+        packet = length + packet
+        self.tcp_soc.sendall(packet)
 
         buf = b''
         while len(buf) < 4:
@@ -70,7 +91,9 @@ class Client(Thread):
     def run(self):
         if self.sendFlag:
             self.send()
-            self.sendFlag = False
+
+        else:
+            self.recive()
 
 #
 # soc.sendto(b'salam', (host, port))
