@@ -7,7 +7,6 @@ from threading import Thread
 import mutagen
 
 
-
 class Client(Thread):
     def __init__(self, host, port, sendFlag=True):
         super().__init__()
@@ -16,18 +15,41 @@ class Client(Thread):
         self.server_port = port
         self.tcp_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp_soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-        self.tcp_soc.connect((host, port))
-        print('Connected to server')
+        self.connected = False
 
     def send(self):
         client_list = self.get_client_list()
-        if len(client_list):
-            receiving_client_address = random.choice(client_list)
-            self.request_to_send(receiving_client_address)
+        while not len(client_list):
+            # repeat until there's a client
+            client_list = self.get_client_list()
 
-    def recive(self):
+        receiving_client_address = random.choice(client_list)
+        client_answer, audio_size = self.request_to_send(receiving_client_address)
+        if client_answer is None:
+            return
+        if client_answer == 'accept':
+            self.send_audio(receiving_client_address, audio_size)
+
+    def receive(self):
         self.get_request()
+
+    def send_audio(self, receiving_client_address, audio_size):
+        msg = {
+            'request': 'SendAudio',
+            'to': receiving_client_address,
+            'audio_size': audio_size
+        }
+        packet = json.dumps(msg).encode('utf-8')
+        length = struct.pack('!I', len(packet))
+        packet = length + packet
+        # self.udp_soc.sendto(packet, (self.server_host, self.server_port))
+
+        audio = open('dgdg.mp3', 'rb')
+        data = audio.read(1024)
+        while data:
+            if self.udp_soc.sendto(data, (self.server_host, self.server_port)):
+                data = audio.read(1024)
+        audio.close()
 
     def request_to_send(self, receiving_client_address):
         request = 'RequestToSend'
@@ -39,7 +61,6 @@ class Client(Thread):
         audio.close()
         audio = mutagen.File('dgdg.mp3')
         audio_bitrate = audio.info.bitrate
-        print(audio_format, audio_name, audio_size, audio_bitrate)
         msg = {'request': request,
                'to': receiving_client_address,
                'audio_name': audio_name,
@@ -50,6 +71,8 @@ class Client(Thread):
         length = struct.pack('!I', len(packet))
         packet = length + packet
         self.tcp_soc.sendall(packet)
+
+        # wait for reply
         buf = b''
         while len(buf) < 4:
             buf += self.tcp_soc.recv(4 - len(buf))
@@ -58,11 +81,14 @@ class Client(Thread):
         buf = b''
         while len(buf) < length:
             buf += self.tcp_soc.recv(length - len(buf))
-        client_answer = json.loads(buf.decode('utf-8')).get('answer')
-        print("answer",client_answer)
 
-        return client_answer
-
+        msg = json.loads(buf.decode('utf-8'))
+        print('Server -->', msg)
+        if msg.get('request') == 'AcceptRequest':
+            client_answer = msg.get('answer')
+            return client_answer, audio_size
+        else:
+            self.connected = False
 
     def get_request(self):
         buf = b''
@@ -73,21 +99,32 @@ class Client(Thread):
         buf = b''
         while len(buf) < length:
             buf += self.tcp_soc.recv(length - len(buf))
-        client_request = json.loads(buf.decode('utf-8'))
+        msg = json.loads(buf.decode('utf-8'))
+        print('Server -->', msg)
 
-        print('ClientRequest : ', client_request)
-        msg = {'request': 'RequestAnswer',
-               'answer': 'accept',
-               'to': client_request.get('from')}
-        packet = json.dumps(msg).encode('utf-8')
-        length = struct.pack('!I', len(packet))
-        packet = length + packet
-        self.tcp_soc.sendall(packet)
-        return client_request
+        if msg.get('request') == 'RequestToSend':
+            msg = {'request': 'AcceptRequest',
+                   'answer': 'accept',
+                   'to': msg.get('from')}
+            packet = json.dumps(msg).encode('utf-8')
+            length = struct.pack('!I', len(packet))
+            packet = length + packet
+            self.tcp_soc.sendall(packet)
 
+        buf = b''
+        while len(buf) < 4:
+            buf += self.tcp_soc.recv(4 - len(buf))
+        length = struct.unpack('!I', buf)[0]
+
+        buf = b''
+        while len(buf) < length:
+            buf += self.tcp_soc.recv(length - len(buf))
+        msg = json.loads(buf.decode('utf-8'))
+        if msg:
+            print('Server -->', msg)
+            self.connected = False
 
     def get_client_list(self):
-        # self.tcp_soc.sendall(b'GetClintList')
         msg = {'request': 'GetClintList'}
         packet = json.dumps(msg).encode('utf-8')
         length = struct.pack('!I', len(packet))
@@ -102,25 +139,24 @@ class Client(Thread):
         buf = b''
         while len(buf) < length:
             buf += self.tcp_soc.recv(length - len(buf))
-        client_list = json.loads(buf.decode('utf-8')).get('ReplyClientList')
+        msg = json.loads(buf.decode('utf-8'))
+        print('Server -->', msg)
 
-        print('ClientList : ', client_list)
+        client_list = msg.get('ReplyClientList')
+
         return client_list
 
     def run(self):
-        if self.sendFlag:
-            self.send()
+        # while True:
+            if not self.connected:
+                self.tcp_soc.connect((self.server_host, self.server_port))
+                self.connected = True
+                print('Connected to server')
 
-        else:
-            self.recive()
+            if self.sendFlag:
+                self.send()
+            else:
+                self.receive()
 
-#
-# soc.sendto(b'salam', (host, port))
-# with open('/home/niloo/Music/dgdg.mp3', 'rb') as f:
-#     data = f.read(1024)
-#     while data:
-#         if soc.sendto(data, (host, port)):
-#             print('sending :|')
-#             data = f.read(1024)
-# soc.close()
-# f.close()
+
+
