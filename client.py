@@ -1,16 +1,16 @@
 import socket
 import json
 import struct
-import random
 from os import path
 from threading import Thread
 import mutagen
 from pydub import AudioSegment
 import random
 import pyaudio
-import wave
+import time
 
 import threading
+buf_size = 1024
 
 class Client(Thread):
     def __init__(self, host, port, sendFlag=True):
@@ -45,14 +45,15 @@ class Client(Thread):
             self.receive_audio(audio_name, audio_format, sample_width, channels, rate)
 
     def send_audio(self):
-        audio = open('yy.wav', 'rb')
-        data = audio.read(1024)
+        audio = open('sample.wav', 'rb')
+        data = audio.read(buf_size)
         i = 1
         while data:
             print('input', i)
             i = i+1
             if self.udp_soc.sendto(data, (self.server_host, self.server_port)):
-                data = audio.read(1024)
+                data = audio.read(buf_size)
+                time.sleep(0.01)
         audio.close()
 
     def receive_audio(self, audio_name, audio_format, sample_width, channels, rate):
@@ -67,8 +68,8 @@ class Client(Thread):
                         channels=channels,
                         rate=rate,
                         output=True,
-                        frames_per_buffer=1024)
-        data, address = self.udp_soc.recvfrom(1024)
+                        frames_per_buffer=buf_size)
+        data, address = self.udp_soc.recvfrom(buf_size)
 
         try:
             while data:
@@ -77,7 +78,7 @@ class Client(Thread):
                 # wf.writeframes(data)
                 # wf1.readframes(1024)
                 self.udp_soc.settimeout(1)
-                data, address = self.udp_soc.recvfrom(1024)
+                data, address = self.udp_soc.recvfrom(buf_size)
         except socket.timeout:
             print('bye')
             stream.stop_stream()
@@ -86,7 +87,7 @@ class Client(Thread):
             self.udp_soc.close()
 
     def request_to_send(self, receiving_client_address):
-        file_path = 'yy.wav'
+        file_path = 'sample.wav'
 
         request = 'RequestToSend'
         audio = open(file_path, 'rb')
