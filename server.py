@@ -6,18 +6,30 @@ import json
 import struct
 from copy import deepcopy
 import random
+from pydub.playback import play
+import threading
 from tkinter import *
 from GUI import Window
 
+buf_size = 1024
 
 class Server(Thread):
 
     def __init__(self, gui):
         super().__init__()
         self.host = '127.0.0.1'
-        self.port = random.randrange(1024,9999)
+        self.port = random.randrange(1024, 9999)
         self.client_list = []
-        self.connection_list={}
+        self.connection_list = {}
+        self.sending_receiving_list = []
+        # keeps a tuple of 3 elements:
+        #   1.sending client address
+        #   2.receiving client address
+        #   3.whether the request has been accepted or not
+        #   4.sample_width = None
+        #   5.channels = None
+        #   6.rate = None
+        ############################################
         # create a socket with ipv4 and TCP protocol
         self.tcp_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp_soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -28,7 +40,6 @@ class Server(Thread):
         self.gui=gui
 
         self.tcp_soc.listen(4)
-        print("TCP Socket now listening")
 
     def run(self):
         while True:
@@ -39,17 +50,16 @@ class Server(Thread):
             print("Connected with " + client_address[0] + ":" + str(client_address[1]))
 
             try:
-                Thread(target=self.run_thread, args=(connection, client_address)).start()
+                Thread(target=self.handle_tcp_messages, args=(connection, client_address)).start()
             except:
                 self.gui("Thread did not start.")
-                print("Thread did not start.")
+                print("TCP Thread did not start.")
                 traceback.print_exc()
 
-    def run_thread(self, connection, client_address):
+    def handle_tcp_messages(self, connection, client_address):
         is_active = True
-
+        # get tcp messages
         while is_active:
-
             buf = b''
             while len(buf) < 4:
                 buf += connection.recv(4 - len(buf))
@@ -58,77 +68,119 @@ class Server(Thread):
             buf = b''
             while len(buf) < length:
                 buf += connection.recv(length - len(buf))
-            msg = json.loads(buf.decode('utf-8')).get('request')
-            # self.gui("msg "+msg)
-            print("msg",msg)
-            # msg = connection.recv(1024)
+            msg = json.loads(buf.decode('utf-8'))
+            print(client_address[0], ':', str(client_address[1]), '-->', msg)
 
-            if msg == 'GetClintList':
-                self.gui(client_address[0] + str(client_address[1]) + ' sent ' + '<GetClintList>')
-                print(client_address[0], str(client_address[1]), ' : <GetClintList>')
+            if msg.get('request') == 'GetClintList':
                 client_list_copy = deepcopy(self.client_list)
                 client_list_copy.remove(client_address)
                 packet = json.dumps({'ReplyClientList': client_list_copy}).encode('utf-8')
                 length = struct.pack('!I', len(packet))
                 packet = length + packet
-                print(packet)
                 connection.sendall(packet)
 
-            if msg == 'RequestToSend':
+            elif msg.get('request') == 'RequestToSend':
+                packet = msg
                 self.gui(client_address[0] + str(client_address[1]) + ' sent' + '<RequestToSend>')
-                # buf = b''
-                # while len(buf) < 4:
-                #     buf += connection.recv(4 - len(buf))
-                #     print(buf)
-                # length = struct.unpack('!I', buf)[0]
-                # print(length)
-                # buf = b''
-                # print("here")
-                # while len(buf) < length:
-                #     buf += connection.recv(length - len(buf))
-                packet = json.loads(buf.decode('utf-8'))
                 to = packet.pop('to')
-                print("dest",to)
-                packet['from'] = client_address
-                packet = json.dumps(packet).encode('utf-8')
+                # check the validity of the receiving client address
+                if (to[0], to[1]) in self.client_list:
+
+                    packet['from'] = client_address
+                    packet = json.dumps(packet).encode('utf-8')
+                    length = struct.pack('!I', len(packet))
+                    packet = length + packet
+                    dest = (to[0], to[1])
+                    self.connection_list[dest][0].sendall(packet)
+                    self.sending_receiving_list.append((client_address, dest, False))
+                else:
+                    msg = {
+                        'request': 'NoSuchClient'
+                    }
+                    packet = json.dumps(msg).encode('utf-8')
+                    length = struct.pack('!I', len(packet))
+                    packet = length + packet
+                    connection.sendall(packet)
+                    connection.close()
+
+            elif msg.get('request') == 'AcceptRequest':
+                packet = msg
+
+                # check if this client is allowed to send an accept request and who is the sender
+                for element in self.sending_receiving_list:
+                    if element[1] == client_address:
+                        if element[2] is False:
+                            # allowed
+                            to = element[0]
+                            packet['from'] = client_address
+                            packet = json.dumps(packet).encode('utf-8')
+                            length = struct.pack('!I', len(packet))
+                            packet = length + packet
+                            i = self.sending_receiving_list.index((to, client_address, False))
+                            # update the sending receiving list
+                            self.sending_receiving_list[i] = (to, client_address, True)
+                            self.connection_list[to][0].sendall(packet)
+                            # if sample_width is not None and channels is not None and rate is not None:
+
+                            try:
+                                print('yesssssssssss')
+
+                                Thread(target=self.handle_udp_messages, args=(to, client_address)).start()
+                                print(self.sending_receiving_list)
+                            except:
+                                print("UDP Thread did not start.")
+                                traceback.print_exc()
+                        else:
+                            msg = {
+                                'request': 'InvalidRequest'
+                            }
+                            packet = json.dumps(msg).encode('utf-8')
+                            length = struct.pack('!I', len(packet))
+                            packet = length + packet
+                            connection.sendall(packet)
+                            connection.close()
+                        break
+                else:
+                    msg = {
+                        'request': 'InvalidRequest'
+                    }
+                    packet = json.dumps(msg).encode('utf-8')
+                    length = struct.pack('!I', len(packet))
+                    packet = length + packet
+                    connection.sendall(packet)
+                    connection.close()
+
+            else:
+                msg = {
+                    'request': 'InvalidRequest'
+                }
+                packet = json.dumps(msg).encode('utf-8')
                 length = struct.pack('!I', len(packet))
                 packet = length + packet
-                dest=(to[0],to[1])
-                self.connection_list[dest][0].sendall(packet)
-
-            if msg == 'RequestAnswer':
-                self.gui(client_address[0] + str(client_address[1]) + ' sent ' + '<RequestAnswer>')
-                packet = json.loads(buf.decode('utf-8'))
-                to = packet.pop('to')
-                print("dest", to)
-                packet['from'] = client_address
-                packet = json.dumps(packet).encode('utf-8')
-                length = struct.pack('!I', len(packet))
-                packet = length + packet
-                dest = (to[0], to[1])
-                self.connection_list[dest][0].sendall(packet)
+                connection.sendall(packet)
+                connection.close()
 
 
+    def handle_udp_messages(self, sending_client_address, receiving_client_address):
+        # get udp messages
+        audio = open('r.wav', 'wb')
 
+        data, address = self.udp_soc.recvfrom(buf_size)
+        print(address, sending_client_address, self.port, )
+        i = 1
+        try:
+            while data:
+                if address == sending_client_address and (sending_client_address, receiving_client_address, True) in \
+                        self.sending_receiving_list:
+                    print(i)
+                    i = i+1
+                    audio.write(data)
+                    self.udp_soc.sendto(data, receiving_client_address)
+                    self.udp_soc.settimeout(1)
+                    data, address = self.udp_soc.recvfrom(buf_size)
+        except socket.timeout:
+            print('bye')
+            audio.close()
+            self.sending_receiving_list.remove((sending_client_address, receiving_client_address, True))
+            self.udp_soc.close()
 
-
-
-
-
-
-# data, udp_addr = self.udp_soc.recvfrom(1024)
-
-#
-#
-# f = open(data.strip(), 'wb')
-#
-# try:
-#     while (data):
-#         f.write(data)
-#         udp_soc.settimeout(2)
-#         data, addr = udp_soc.recvfrom(1024)
-# except socket.timeout:
-#     f.close()
-#     udp_soc.close()
-#     print("File Downloaded")
-#
