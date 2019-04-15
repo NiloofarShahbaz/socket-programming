@@ -5,7 +5,12 @@ import random
 from os import path
 from threading import Thread
 import mutagen
+from pydub import AudioSegment
+import random
+import pyaudio
+import wave
 
+import threading
 
 class Client(Thread):
     def __init__(self, host, port, sendFlag=True):
@@ -15,6 +20,9 @@ class Client(Thread):
         self.server_port = port
         self.tcp_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp_soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        port = random.randrange(9999, 65535)
+        self.tcp_soc.bind((self.server_host, port))
+        self.udp_soc.bind((self.server_host, port))
         self.connected = False
 
     def send(self):
@@ -24,49 +32,89 @@ class Client(Thread):
             client_list = self.get_client_list()
 
         receiving_client_address = random.choice(client_list)
-        client_answer, audio_size = self.request_to_send(receiving_client_address)
+        client_answer = self.request_to_send(receiving_client_address)
         if client_answer is None:
             return
         if client_answer == 'accept':
-            self.send_audio(receiving_client_address, audio_size)
+            self.send_audio()
 
     def receive(self):
-        self.get_request()
+        audio_name, audio_format, sample_width, channels, rate = self.get_request()
 
-    def send_audio(self, receiving_client_address, audio_size):
-        msg = {
-            'request': 'SendAudio',
-            'to': receiving_client_address,
-            'audio_size': audio_size
-        }
-        packet = json.dumps(msg).encode('utf-8')
-        length = struct.pack('!I', len(packet))
-        packet = length + packet
-        # self.udp_soc.sendto(packet, (self.server_host, self.server_port))
+        if audio_name:
+            self.receive_audio(audio_name, audio_format, sample_width, channels, rate)
 
-        audio = open('dgdg.mp3', 'rb')
+    def send_audio(self):
+        audio = open('yy.wav', 'rb')
         data = audio.read(1024)
+        i = 1
         while data:
+            print('input', i)
+            i = i+1
             if self.udp_soc.sendto(data, (self.server_host, self.server_port)):
                 data = audio.read(1024)
         audio.close()
 
+    def receive_audio(self, audio_name, audio_format, sample_width, channels, rate):
+        audio = open(audio_name + '1.' + audio_format, 'wb')
+        # wf = wave.open(audio_name + '1.' + audio_format, 'wb')
+        # wf1 = wave.open(audio_name + '1.' + audio_format, 'rb')
+        # wf.setnchannels(channels)
+        # wf.setsampwidth(sample_width)
+        # wf.setframerate(rate)
+        p = pyaudio.PyAudio()
+        stream = p.open(format=p.get_format_from_width(sample_width),
+                        channels=channels,
+                        rate=rate,
+                        output=True,
+                        frames_per_buffer=1024)
+        data, address = self.udp_soc.recvfrom(1024)
+
+        try:
+            while data:
+                audio.write(data)
+                stream.write(data)
+                # wf.writeframes(data)
+                # wf1.readframes(1024)
+                self.udp_soc.settimeout(1)
+                data, address = self.udp_soc.recvfrom(1024)
+        except socket.timeout:
+            print('bye')
+            stream.stop_stream()
+            stream.close()
+            audio.close()
+            self.udp_soc.close()
+
     def request_to_send(self, receiving_client_address):
+        file_path = 'yy.wav'
+
         request = 'RequestToSend'
-        audio = open('dgdg.mp3', 'rb')
+        audio = open(file_path, 'rb')
         audio_name = path.basename(audio.name)
         audio_size = path.getsize(audio.name)
         audio_name, audio_format = path.splitext(audio_name)
         audio_format = audio_format[1:]
         audio.close()
-        audio = mutagen.File('dgdg.mp3')
-        audio_bitrate = audio.info.bitrate
+        audio = mutagen.File(file_path)
+        # audio_bitrate = audio.info.bitrate
+        if audio_format == "mp3":
+            audio = AudioSegment.from_mp3(file_path)
+        elif audio_format == "wav":
+            audio = AudioSegment.from_wav(file_path)
+        else:
+            # TODO : raise exception --> only wav or mp3 format
+            audio = AudioSegment.from_file(file_path, audio_format)
+
         msg = {'request': request,
                'to': receiving_client_address,
                'audio_name': audio_name,
                'audio_size': audio_size,
                'audio_format': audio_format,
-               'audio_bitrate': audio_bitrate}
+               # 'audio_bitrate': audio_bitrate,
+               'pyaudio_sample_width': audio.sample_width,
+               'pyaudio_channels': audio.channels,
+               'pyaudio_framerate': audio.frame_rate
+               }
         packet = json.dumps(msg).encode('utf-8')
         length = struct.pack('!I', len(packet))
         packet = length + packet
@@ -86,7 +134,7 @@ class Client(Thread):
         print('Server -->', msg)
         if msg.get('request') == 'AcceptRequest':
             client_answer = msg.get('answer')
-            return client_answer, audio_size
+            return client_answer
         else:
             self.connected = False
 
@@ -103,26 +151,21 @@ class Client(Thread):
         print('Server -->', msg)
 
         if msg.get('request') == 'RequestToSend':
+            audio_name = msg.get('audio_name')
+            audio_format = msg.get('audio_format')
+            sample_width = msg.get('pyaudio_sample_width')
+            channels = msg.get('pyaudio_channels')
+            rate = msg.get('pyaudio_framerate')
             msg = {'request': 'AcceptRequest',
-                   'answer': 'accept',
-                   'to': msg.get('from')}
+                   'answer': 'accept'
+                   }
+            # or deny!
             packet = json.dumps(msg).encode('utf-8')
             length = struct.pack('!I', len(packet))
             packet = length + packet
             self.tcp_soc.sendall(packet)
 
-        buf = b''
-        while len(buf) < 4:
-            buf += self.tcp_soc.recv(4 - len(buf))
-        length = struct.unpack('!I', buf)[0]
-
-        buf = b''
-        while len(buf) < length:
-            buf += self.tcp_soc.recv(length - len(buf))
-        msg = json.loads(buf.decode('utf-8'))
-        if msg:
-            print('Server -->', msg)
-            self.connected = False
+            return audio_name, audio_format, sample_width, channels, rate
 
     def get_client_list(self):
         msg = {'request': 'GetClintList'}
