@@ -8,12 +8,14 @@ from copy import deepcopy
 import random
 from pydub.playback import play
 import threading
+from tkinter import *
+from GUI import Window
 
 buf_size = 1024
 
 class Server(Thread):
 
-    def __init__(self):
+    def __init__(self, gui):
         super().__init__()
         self.host = '127.0.0.1'
         self.port = random.randrange(1024, 9999)
@@ -35,6 +37,8 @@ class Server(Thread):
         self.tcp_soc.bind((self.host, self.port))
         self.udp_soc.bind((self.host, self.port))
 
+        self.gui=gui
+
         self.tcp_soc.listen(4)
 
     def run(self):
@@ -42,11 +46,13 @@ class Server(Thread):
             connection, client_address = self.tcp_soc.accept()
             self.client_list.append(client_address)
             self.connection_list[client_address] = [connection, self.udp_soc]
+            self.gui("Connected with " + client_address[0] + ":" + str(client_address[1]))
             print("Connected with " + client_address[0] + ":" + str(client_address[1]))
 
             try:
                 Thread(target=self.handle_tcp_messages, args=(connection, client_address)).start()
             except:
+                self.gui("Thread did not start.")
                 print("TCP Thread did not start.")
                 traceback.print_exc()
 
@@ -75,6 +81,7 @@ class Server(Thread):
 
             elif msg.get('request') == 'RequestToSend':
                 packet = msg
+                self.gui(client_address[0] + str(client_address[1]) + ' sent' + '<RequestToSend>')
                 to = packet.pop('to')
                 # check the validity of the receiving client address
                 if (to[0], to[1]) in self.client_list:

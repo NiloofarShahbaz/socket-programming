@@ -8,6 +8,8 @@ from pydub import AudioSegment
 import random
 import pyaudio
 import time
+from tkinter import *
+from GUI import Window
 
 import threading
 buf_size = 1024
@@ -18,6 +20,7 @@ class Client(Thread):
         self.sendFlag = sendFlag
         self.server_host = host
         self.server_port = port
+        # self.gui = gui
         self.tcp_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp_soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         port = random.randrange(9999, 65535)
@@ -26,6 +29,10 @@ class Client(Thread):
         self.connected = False
 
     def send(self):
+        root1 = Tk()
+        root1.geometry("600x400")
+        self.sender_window = Window(root1, "sender")
+
         client_list = self.get_client_list()
         while not len(client_list):
             # repeat until there's a client
@@ -140,6 +147,7 @@ class Client(Thread):
             self.connected = False
 
     def get_request(self):
+        self.reciver_window.sender_window('reciver : ')
         buf = b''
         while len(buf) < 4:
             buf += self.tcp_soc.recv(4 - len(buf))
