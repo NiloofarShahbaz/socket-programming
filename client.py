@@ -5,6 +5,8 @@ import random
 from os import path
 from threading import Thread
 import mutagen
+from tkinter import *
+from GUI import Window
 
 
 
@@ -14,6 +16,7 @@ class Client(Thread):
         self.sendFlag = sendFlag
         self.server_host = host
         self.server_port = port
+        # self.gui = gui
         self.tcp_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp_soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -21,13 +24,25 @@ class Client(Thread):
         print('Connected to server')
 
     def send(self):
+        root1 = Tk()
+        root1.geometry("600x400")
+        self.sender_window = Window(root1, "sender")
+
         client_list = self.get_client_list()
         if len(client_list):
             receiving_client_address = random.choice(client_list)
             self.request_to_send(receiving_client_address)
 
+        root1.mainloop()
+
     def recive(self):
+        root1 = Tk()
+        root1.geometry("600x400")
+        self.reciver_window = Window(root1, "reciver")
+
         self.get_request()
+
+        root1.mainloop()
 
     def request_to_send(self, receiving_client_address):
         request = 'RequestToSend'
@@ -39,6 +54,7 @@ class Client(Thread):
         audio.close()
         audio = mutagen.File('dgdg.mp3')
         audio_bitrate = audio.info.bitrate
+        self.sender_window.sender_window('sender : ')
         print(audio_format, audio_name, audio_size, audio_bitrate)
         msg = {'request': request,
                'to': receiving_client_address,
@@ -65,6 +81,7 @@ class Client(Thread):
 
 
     def get_request(self):
+        self.reciver_window.sender_window('reciver : ')
         buf = b''
         while len(buf) < 4:
             buf += self.tcp_soc.recv(4 - len(buf))

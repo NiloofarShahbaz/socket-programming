@@ -6,11 +6,13 @@ import json
 import struct
 from copy import deepcopy
 import random
+from tkinter import *
+from GUI import Window
 
 
 class Server(Thread):
 
-    def __init__(self):
+    def __init__(self, gui):
         super().__init__()
         self.host = '127.0.0.1'
         self.port = random.randrange(1024,9999)
@@ -23,6 +25,8 @@ class Server(Thread):
         self.tcp_soc.bind((self.host, self.port))
         self.udp_soc.bind((self.host, self.port))
 
+        self.gui=gui
+
         self.tcp_soc.listen(4)
         print("TCP Socket now listening")
 
@@ -31,11 +35,13 @@ class Server(Thread):
             connection, client_address = self.tcp_soc.accept()
             self.client_list.append(client_address)
             self.connection_list[client_address] = [connection, self.udp_soc]
+            self.gui("Connected with " + client_address[0] + ":" + str(client_address[1]))
             print("Connected with " + client_address[0] + ":" + str(client_address[1]))
 
             try:
                 Thread(target=self.run_thread, args=(connection, client_address)).start()
             except:
+                self.gui("Thread did not start.")
                 print("Thread did not start.")
                 traceback.print_exc()
 
@@ -53,10 +59,12 @@ class Server(Thread):
             while len(buf) < length:
                 buf += connection.recv(length - len(buf))
             msg = json.loads(buf.decode('utf-8')).get('request')
+            # self.gui("msg "+msg)
             print("msg",msg)
             # msg = connection.recv(1024)
 
             if msg == 'GetClintList':
+                self.gui(client_address[0] + str(client_address[1]) + ' sent ' + '<GetClintList>')
                 print(client_address[0], str(client_address[1]), ' : <GetClintList>')
                 client_list_copy = deepcopy(self.client_list)
                 client_list_copy.remove(client_address)
@@ -67,6 +75,7 @@ class Server(Thread):
                 connection.sendall(packet)
 
             if msg == 'RequestToSend':
+                self.gui(client_address[0] + str(client_address[1]) + ' sent' + '<RequestToSend>')
                 # buf = b''
                 # while len(buf) < 4:
                 #     buf += connection.recv(4 - len(buf))
@@ -88,6 +97,7 @@ class Server(Thread):
                 self.connection_list[dest][0].sendall(packet)
 
             if msg == 'RequestAnswer':
+                self.gui(client_address[0] + str(client_address[1]) + ' sent ' + '<RequestAnswer>')
                 packet = json.loads(buf.decode('utf-8'))
                 to = packet.pop('to')
                 print("dest", to)
