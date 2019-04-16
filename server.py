@@ -25,9 +25,6 @@ class Server(Thread):
         #   1.sending client address
         #   2.receiving client address
         #   3.whether the request has been accepted or not
-        #   4.sample_width = None
-        #   5.channels = None
-        #   6.rate = None
         ############################################
         # create a socket with ipv4 and TCP protocol
         self.tcp_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -47,7 +44,7 @@ class Server(Thread):
             self.connection_list[client_address] = [connection, self.udp_soc]
             if temp != len(self.client_list):
                 self.gui(self.client_list)
-            print("Connected with " + client_address[0] + ":" + str(client_address[1]))
+            print("server: Connected with " + client_address[0] + ":" + str(client_address[1]))
 
             try:
                 Thread(target=self.handle_tcp_messages, args=(connection, client_address)).start()
@@ -69,7 +66,7 @@ class Server(Thread):
             while len(buf) < length:
                 buf += connection.recv(length - len(buf))
             msg = json.loads(buf.decode('utf-8'))
-            print(client_address[0], ':', str(client_address[1]), '-->', msg)
+            print('server:', str(client_address[1]), '-->', msg)
 
             if msg.get('request') == 'GetClintList':
                 client_list_copy = deepcopy(self.client_list)
@@ -123,10 +120,8 @@ class Server(Thread):
                             # if sample_width is not None and channels is not None and rate is not None:
 
                             try:
-                                print('yesssssssssss')
-
+                                print('yesssssssssssss')
                                 Thread(target=self.handle_udp_messages, args=(to, client_address)).start()
-                                print(self.sending_receiving_list)
                             except:
                                 print("UDP Thread did not start.")
                                 traceback.print_exc()
@@ -160,27 +155,25 @@ class Server(Thread):
                 connection.sendall(packet)
                 connection.close()
 
-
     def handle_udp_messages(self, sending_client_address, receiving_client_address):
         # get udp messages
-        audio = open('r.wav', 'wb')
+        # print('id:', threading.current_thread().ident)
+        # x = random.randrange(0, 100)
+        # file = str(x) + '.wav'
+        # audio = open(file, 'wb')
 
         data, address = self.udp_soc.recvfrom(buf_size)
         print(address, sending_client_address, self.port, )
-        i = 1
         try:
             while data:
                 if address == sending_client_address and (sending_client_address, receiving_client_address, True) in \
                         self.sending_receiving_list:
-                    print(i)
-                    i = i+1
-                    audio.write(data)
+                    # audio.write(data)
                     self.udp_soc.sendto(data, receiving_client_address)
                     self.udp_soc.settimeout(1)
                     data, address = self.udp_soc.recvfrom(buf_size)
         except socket.timeout:
-            print('bye')
-            audio.close()
+            print(threading.current_thread().ident,'bye')
+            # audio.close()
             self.sending_receiving_list.remove((sending_client_address, receiving_client_address, True))
-            self.udp_soc.close()
 
