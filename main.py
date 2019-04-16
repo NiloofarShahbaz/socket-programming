@@ -11,16 +11,16 @@ def sender():
     client2 = Client(server.host, server.port, False)
     client2.start()
 
-    for child in app.winfo_children():
-        child.destroy()
+    # for child in app.winfo_children():
+    #     child.destroy()
 
 def reciver():
     client1 = Client(server.host, server.port)
     client1.start()
     client2 = Client(server.host,  server.port, False)
     client2.start()
-    for child in app.winfo_children():
-        child.destroy()
+    # for child in app.winfo_children():
+    #     child.destroy()
 
 
 root = Tk()

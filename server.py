@@ -6,7 +6,6 @@ import json
 import struct
 from copy import deepcopy
 import random
-from pydub.playback import play
 import threading
 from tkinter import *
 from GUI import Window
@@ -38,21 +37,22 @@ class Server(Thread):
         self.udp_soc.bind((self.host, self.port))
 
         self.gui=gui
-
         self.tcp_soc.listen(4)
 
     def run(self):
         while True:
+            temp = len(self.client_list)
             connection, client_address = self.tcp_soc.accept()
             self.client_list.append(client_address)
             self.connection_list[client_address] = [connection, self.udp_soc]
-            self.gui("Connected with " + client_address[0] + ":" + str(client_address[1]))
+            if temp != len(self.client_list):
+                self.gui(self.client_list)
             print("Connected with " + client_address[0] + ":" + str(client_address[1]))
 
             try:
                 Thread(target=self.handle_tcp_messages, args=(connection, client_address)).start()
             except:
-                self.gui("Thread did not start.")
+                # self.gui("Thread did not start.")
                 print("TCP Thread did not start.")
                 traceback.print_exc()
 
@@ -81,7 +81,7 @@ class Server(Thread):
 
             elif msg.get('request') == 'RequestToSend':
                 packet = msg
-                self.gui(client_address[0] + str(client_address[1]) + ' sent' + '<RequestToSend>')
+                # self.gui(client_address[0] + str(client_address[1]) + ' sent' + '<RequestToSend>')
                 to = packet.pop('to')
                 # check the validity of the receiving client address
                 if (to[0], to[1]) in self.client_list:

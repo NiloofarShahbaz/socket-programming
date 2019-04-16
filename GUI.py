@@ -1,5 +1,7 @@
 from tkinter import *
-
+from tkinter import ttk
+from PIL import ImageTk, Image
+from functools import partial
 
 class Window(Frame):
 
@@ -17,6 +19,8 @@ class Window(Frame):
         self.title_font=("Helvetica", 16)
         self.button_font = ("Helvetica", 11)
         self.server_font = ("Helvetica", 14)
+        s = ttk.Style()  # Creating style element
+        s.configure('Helvetica') # First argument is the name of style. Needs to end with: .TRadiobutton)
 
     # Creation of init_window
     def client_init_window(self,recive_fun,send_fun):
@@ -36,27 +40,53 @@ class Window(Frame):
         quitButton2.place(x=205, y=220)
 
 
-    def server_init_window(self, text):
+    def server_init_window(self, client_list):
+        print("server gui")
+
+        # self.pack(fill=BOTH, expand=1)
+        # self.grid(column=0, row=0, sticky='nsew')
+        # img = ImageTk.PhotoImage(Image.open("client.jpg"))
+        # for i in range(0,len(client_list)):
+        #     image_label = Label(image=img).grid(column=0,row=i+1)
+        # ttk.Separator(self, orient='horizontal').grid(column=0,row=1, columnspan=4, sticky='ew')
+
+
+
+        # label.pack()
+
+
+    def sender_choose_client_window(self, client_list):
 
         self.pack(fill=BOTH, expand=1)
 
-        self.master.title("server response")
+        var = IntVar(self)
+        # var.set(0)
 
-        label = Label(self, text=text, font=self.server_font)
+        # separatore.pack()
+        # self.master.title("sende")
+        label = Label(self, text="Choose a client to send file", font=self.title_font)
+        label.pack()
+        # label.pack()
+        i=1
+        for client in client_list:
+            ttk.Radiobutton(self,
+                           text=client,
+                           variable=var,
+                           value=i,
+                           command=partial(self.ShowChoice,var)).pack(anchor=W)
+            i= i+1
 
+
+
+
+    def ShowChoice(self,var):
+        print("selected",var.get())
+
+
+    def reciver_init_winodw(self):
+        label = Label(self, text="please wait for the other client to send request", font=self.title_font)
         label.pack()
 
 
-    def sender_window(self, text):
-
-        self.pack(fill=BOTH, expand=1)
-
-        self.master.title("server response")
-
-        label = Label(self, text=text, font=self.server_font)
-
-        label.pack()
-
-
-
-
+    def getting_reuest(self):
+        pass

@@ -37,7 +37,7 @@ class Client(Thread):
         while not len(client_list):
             # repeat until there's a client
             client_list = self.get_client_list()
-
+        self.sender_window.sender_choose_client_window(client_list)
         receiving_client_address = random.choice(client_list)
         client_answer = self.request_to_send(receiving_client_address)
         if client_answer is None:
@@ -45,11 +45,20 @@ class Client(Thread):
         if client_answer == 'accept':
             self.send_audio()
 
+        root1.mainloop()
+
     def receive(self):
+        root1 = Tk()
+        root1.geometry("600x400")
+        self.reciver_window = Window(root1, "reciver")
+        self.reciver_window.reciver_init_winodw()
         audio_name, audio_format, sample_width, channels, rate = self.get_request()
+
 
         if audio_name:
             self.receive_audio(audio_name, audio_format, sample_width, channels, rate)
+
+        root1.mainloop()
 
     def send_audio(self):
         audio = open('sample.wav', 'rb')
@@ -147,7 +156,7 @@ class Client(Thread):
             self.connected = False
 
     def get_request(self):
-        self.reciver_window.sender_window('reciver : ')
+        # self.reciver_window.sender_window('reciver : ')
         buf = b''
         while len(buf) < 4:
             buf += self.tcp_soc.recv(4 - len(buf))
