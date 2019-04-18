@@ -9,7 +9,7 @@ import time
 import wave
 import threading
 
-buf_size = 1024
+buf_size = 2048
 
 
 class Client(Thread):
@@ -39,13 +39,38 @@ class Client(Thread):
             self.receive_audio(audio_name, audio_format, sample_width, channels, rate)
 
     def send_audio(self, file_path):
-        audio = open(file_path, 'rb')
-        data = audio.read(buf_size)
-        while data:
-            if self.udp_soc.sendto(data, (self.server_host, self.server_port)):
-                data = audio.read(buf_size)
-                time.sleep(0.01)
-        audio.close()
+        # audio = open(file_path, 'rb')
+        # data = audio.read(buf_size)
+        # while data:
+        #     if self.udp_soc.sendto(data, (self.server_host, self.server_port)):
+        #         data = audio.read(buf_size)
+        #         time.sleep(0.01)
+        # audio.close()
+        CHUNK = 1024 * 4
+        FORMAT = pyaudio.paInt24
+        CHANNELS = 1
+        RATE = 44100
+        RECORD_SECONDS =10
+        WAVE_OUTPUT_FILENAME = "output.wav"
+        p = pyaudio.PyAudio()
+        input_device_index = p.get_device_info_by_index()
+        print("here")
+        stream = p.open(format=FORMAT,
+                        channels=CHANNELS,
+                        rate=RATE,
+                        input=True,
+                        frames_per_buffer=CHUNK)
+
+        print("Recording")
+        for i in range(p.get_device_count()):
+            print(p.get_device_info_by_index(i))
+            # input_device_index = p.get_device_info_by_index()
+
+        # with socket.socket() as client_socket:
+        #     client_socket.connect((HOST, PORT))
+        while True:
+            data = stream.read(CHUNK)
+            self.udp_soc.sendto(data,(self.server_host,self.server_port))
 
     def receive_audio(self, audio_name, audio_format, sample_width, channels, rate):
         audio = open(audio_name + '1.' + audio_format, 'wb')

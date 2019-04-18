@@ -9,7 +9,7 @@ import random
 from pydub.playback import play
 import threading
 
-buf_size = 1024
+buf_size = 2048
 
 class Server(Thread):
 
@@ -155,6 +155,7 @@ class Server(Thread):
         # file = str(x) + '.wav'
         # audio = open(file, 'wb')
 
+        # frames = []
         data, address = self.udp_soc.recvfrom(buf_size)
         print(address, sending_client_address, self.port, )
         try:
@@ -165,6 +166,7 @@ class Server(Thread):
                     self.udp_soc.sendto(data, receiving_client_address)
                     self.udp_soc.settimeout(1)
                     data, address = self.udp_soc.recvfrom(buf_size)
+                    # frames.append(data)
         except socket.timeout:
             print(threading.current_thread().ident,'bye')
             # audio.close()
