@@ -14,7 +14,7 @@ buf_size = 1024
 
 class Server(Thread):
 
-    def __init__(self, gui):
+    def __init__(self, root):
         super().__init__()
         self.host = '127.0.0.1'
         self.port = random.randrange(1024, 9999)
@@ -33,23 +33,28 @@ class Server(Thread):
         self.tcp_soc.bind((self.host, self.port))
         self.udp_soc.bind((self.host, self.port))
 
-        self.gui=gui
+        self.root = root
         self.tcp_soc.listen(4)
 
     def run(self):
+        root1 = Toplevel(self.root)
+        root1.wm_geometry("800x500")
+        self.sender_window = Window(root1, "server")
         while True:
             temp = len(self.client_list)
             connection, client_address = self.tcp_soc.accept()
             self.client_list.append(client_address)
             self.connection_list[client_address] = [connection, self.udp_soc]
-            if temp != len(self.client_list):
-                self.gui(self.client_list)
+            # if temp != len(self.client_list):
+            # for child in self.sender_window.winfo_children():
+            #     child.destroy()
+            self.sender_window.server_init_window(self.client_list)
             print("server: Connected with " + client_address[0] + ":" + str(client_address[1]))
 
             try:
                 Thread(target=self.handle_tcp_messages, args=(connection, client_address)).start()
             except:
-                # self.gui("Thread did not start.")
+                self.sender_window.server_warning()
                 print("TCP Thread did not start.")
                 traceback.print_exc()
 
@@ -66,18 +71,21 @@ class Server(Thread):
             while len(buf) < length:
                 buf += connection.recv(length - len(buf))
             msg = json.loads(buf.decode('utf-8'))
+            self.sender_window.server_messages(msg.get('request'), client_address[1])
             print('server:', str(client_address[1]), '-->', msg)
 
             if msg.get('request') == 'GetClintList':
                 client_list_copy = deepcopy(self.client_list)
                 client_list_copy.remove(client_address)
                 packet = json.dumps({'ReplyClientList': client_list_copy}).encode('utf-8')
+                self.sender_window.server_messages(packet, 'server')
                 length = struct.pack('!I', len(packet))
                 packet = length + packet
                 connection.sendall(packet)
 
             elif msg.get('request') == 'RequestToSend':
                 packet = msg
+                self.sender_window.server_messages(packet, client_address[1])
                 # self.gui(client_address[0] + str(client_address[1]) + ' sent' + '<RequestToSend>')
                 to = packet.pop('to')
                 # check the validity of the receiving client address
@@ -88,6 +96,7 @@ class Server(Thread):
                     length = struct.pack('!I', len(packet))
                     packet = length + packet
                     dest = (to[0], to[1])
+                    self.sender_window.server_messages(packet, 'server' , to)
                     self.connection_list[dest][0].sendall(packet)
                     self.sending_receiving_list.append((client_address, dest, False))
                 else:
