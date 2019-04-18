@@ -7,7 +7,6 @@ import random
 import pyaudio
 import time
 import wave
-import threading
 import traceback
 
 buf_size = 1024
@@ -23,7 +22,6 @@ class Client(Thread):
         self.my_port = random.randrange(9999, 65535)
         self.tcp_soc.bind((self.server_host, self.my_port))
         self.udp_soc.bind((self.server_host, self.my_port))
-        self.connected = False
         self.state = 0
         self.ready = False
         self.message = {}
@@ -76,7 +74,6 @@ class Client(Thread):
                 self.udp_soc.settimeout(1)
                 data, address = self.udp_soc.recvfrom(buf_size)
         except socket.timeout:
-            print('bye')
             stream.stop_stream()
             stream.close()
             audio.close()
@@ -122,7 +119,6 @@ class Client(Thread):
             self.tcp_soc.sendall(packet)
             return True
         else:
-            self.connected = False
             return False
 
     def get_client_list(self):
@@ -133,32 +129,32 @@ class Client(Thread):
         self.tcp_soc.sendall(packet)
 
     def get_tcp(self):
-        while True:
-            buf = b''
-            while len(buf) < 4:
-                buf += self.tcp_soc.recv(4 - len(buf))
-            length = struct.unpack('!I', buf)[0]
+        try:
+            while True:
+                buf = b''
+                while len(buf) < 4:
+                    buf += self.tcp_soc.recv(4 - len(buf))
+                length = struct.unpack('!I', buf)[0]
 
-            buf = b''
-            while len(buf) < length:
-                buf += self.tcp_soc.recv(length - len(buf))
-            self.message = json.loads(buf.decode('utf-8'))
-            print(self.my_port, ': Server -->', self.message)
-            self.ready = True
+                buf = b''
+                while len(buf) < length:
+                    buf += self.tcp_soc.recv(length - len(buf))
+                self.message = json.loads(buf.decode('utf-8'))
+                print(self.my_port, ': Server -->', self.message)
+                self.ready = True
 
-            if 'AutoClientList' in self.message:
-                client_list = self.message.get('AutoClientList')
-                print('--------Auto client list-------')
-                for i in range(0, len(client_list)):
-                    print(str(i + 1) + '.', client_list[i])
-                self.ready = False
+                if 'AutoClientList' in self.message:
+                    client_list = self.message.get('AutoClientList')
+                    print('--------Auto client list-------')
+                    for i in range(0, len(client_list)):
+                        print(str(i + 1) + '.', client_list[i])
+                    self.ready = False
+        except socket.error:
+            print(self.my_port, ' : Connection has been closed! sorry!')
 
     def handle_receive_tcp(self):
         while not self.ready:
             pass
-
-        print('fkhdjkhk', self.message)
-
         if 'ReplyClientList' in self.message and self.state is 1:
             client_list = self.message.get('ReplyClientList')
             self.ready = False
@@ -180,11 +176,9 @@ class Client(Thread):
                 return audio_name, audio_format, sample_width, channels, rate
         else:
             self.ready = False
-            self.connected = False
 
     def run(self):
         self.tcp_soc.connect((self.server_host, self.server_port))
-        self.connected = True
         print(self.my_port, ": you are now connected to server")
 
         try:
