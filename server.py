@@ -9,6 +9,7 @@ import random
 import threading
 from tkinter import *
 from GUI import Window
+from queue import Queue
 
 buf_size = 1024
 
@@ -21,6 +22,7 @@ class Server(Thread):
         self.client_list = []
         self.connection_list = {}
         self.sending_receiving_list = []
+        self.signal = False
         # keeps a tuple of 3 elements:
         #   1.sending client address
         #   2.receiving client address
@@ -40,6 +42,12 @@ class Server(Thread):
         root1 = Toplevel(self.root)
         root1.wm_geometry("800x500")
         self.sender_window = Window(root1, "server")
+        try:
+            Thread(target=self.handle_udp_messages).start()
+        except:
+            print("UDP Thread did not start.")
+            traceback.print_exc()
+
         while True:
             temp = len(self.client_list)
             connection, client_address = self.tcp_soc.accept()
@@ -127,13 +135,13 @@ class Server(Thread):
                             self.sending_receiving_list[i] = (to, client_address, True)
                             self.connection_list[to][0].sendall(packet)
                             # if sample_width is not None and channels is not None and rate is not None:
-
-                            try:
-                                print('yesssssssssssss')
-                                Thread(target=self.handle_udp_messages, args=(to, client_address)).start()
-                            except:
-                                print("UDP Thread did not start.")
-                                traceback.print_exc()
+                            #
+                            # try:
+                            #     print('yesssssssssssss')
+                            #     Thread(target=self.handle_udp_messages, args=(to, client_address, queue)).start()
+                            # except:
+                            #     print("UDP Thread did not start.")
+                            #     traceback.print_exc()
                         else:
                             msg = {
                                 'request': 'InvalidRequest'
@@ -164,25 +172,39 @@ class Server(Thread):
                 connection.sendall(packet)
                 connection.close()
 
-    def handle_udp_messages(self, sending_client_address, receiving_client_address):
-        # get udp messages
-        # print('id:', threading.current_thread().ident)
-        # x = random.randrange(0, 100)
-        # file = str(x) + '.wav'
-        # audio = open(file, 'wb')
-
+    def receive_udp(self, queue):
         data, address = self.udp_soc.recvfrom(buf_size)
-        print(address, sending_client_address, self.port, )
         try:
             while data:
-                if address == sending_client_address and (sending_client_address, receiving_client_address, True) in \
-                        self.sending_receiving_list:
-                    # audio.write(data)
-                    self.udp_soc.sendto(data, receiving_client_address)
-                    self.udp_soc.settimeout(1)
-                    data, address = self.udp_soc.recvfrom(buf_size)
+                self.signal = True
+                queue.put((data, address))
+                data, address = self.udp_soc.recvfrom(buf_size)
+                self.udp_soc.settimeout(2)
         except socket.timeout:
-            print(threading.current_thread().ident,'bye')
-            # audio.close()
-            self.sending_receiving_list.remove((sending_client_address, receiving_client_address, True))
+            self.signal = False
+            print('byee')
+
+    def handle_udp_messages(self):
+        # get udp messages
+        queue = Queue()
+        self.signal = False
+        try:
+            Thread(target=self.receive_udp, args=(queue, )).start()
+        except:
+            print("Auto client list Thread did not start.")
+            traceback.print_exc()
+
+        audio = open('r.wav', 'wb')
+
+        while not self.signal:
+            pass
+        while self.signal:
+            while not queue.empty():
+                data, address = queue.get()
+                for element in self.sending_receiving_list:
+                    if element[0] == address and element[2] is True:
+                        receiving_client_address = element[1]
+                        audio.write(data)
+                        self.udp_soc.sendto(data, receiving_client_address)
+        audio.close()
 
