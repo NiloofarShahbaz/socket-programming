@@ -12,25 +12,17 @@ def client():
     client1 = Client(server.host, server.port,id,root)
     client1.start()
     id = id + 1
-    # for child in app.winfo_children():
-    #     child.destroy()
 
 
 root = Tk()
-
 root.geometry("600x400")
 
 # creation of an instance
 app = Window(root, "initial")
 server = Server(root)
 server.start()
-id =1
+id = 1
 app.init_window(client)
-
-# # creation of an instance
-# server_app = Window(root, "server")
-#
-# server_app.init_window(server , "server")
 
 # mainloop
 root.mainloop()

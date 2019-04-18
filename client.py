@@ -20,11 +20,10 @@ class Client(Thread):
         super().__init__()
         self.server_host = host
         self.server_port = port
-        # self.gui = gui
-        self.choice =''
-        self.request_ans=''
-        self.client_address_choice=''
-        self.root=root
+        self.choice = ''
+        self.request_ans = ''
+        self.client_address_choice = ''
+        self.root = root
         self.tcp_soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.udp_soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.my_port = random.randrange(9999, 65535)
@@ -33,13 +32,11 @@ class Client(Thread):
         self.connected = False
         self.id = id
 
-    def send(self,receiving_client_address):
-        self.sender_window.filename =  filedialog.askopenfilename(initialdir = "/",title = "Select file",filetypes = (("wav files","*.wav"),("all files","*.*")))
-        print ("addreess",self.sender_window.filename)
+    def send(self, receiving_client_address):
+        self.sender_window.filename = filedialog.askopenfilename(initialdir="/", title="Select file", filetypes=(
+            ("wav files", "*.wav"), ("all files", "*.*")))
 
-        # file_path = input(str(self.my_port) + " : input file:\n")
         client_answer = self.request_to_send(receiving_client_address, self.sender_window.filename)
-        # self.sender_window.sender_choose_client_window()
         if client_answer is None:
             return
         if client_answer == 'accept':
@@ -48,31 +45,24 @@ class Client(Thread):
                 child.destroy()
             self.sender_window.finish_sending("sent")
 
-
     def receive(self):
-        # root1 = Tk()
-        # root1.geometry("600x400")
-        # self.reciver_window = Window(root1, "reciver")
-        # self.reciver_window.reciver_init_winodw()
         audio_name, audio_format, sample_width, channels, rate = self.get_request()
-
 
         if audio_name:
             self.receive_audio(audio_name, audio_format, sample_width, channels, rate)
             self.sender_window.finish_sending("received")
 
-        # root1.mainloop()
     def send_audio(self, file_path):
         audio = open(file_path, 'rb')
         audio_size = path.getsize(audio.name)
         data = audio.read(buf_size)
-        i=0
+        i = 0
         for child in self.sender_window.winfo_children():
             child.destroy()
-        self.sender_window.sending_audio(audio_size,"Sending File")
+        self.sender_window.sending_audio(audio_size, "Sending File")
         while data:
             if self.udp_soc.sendto(data, (self.server_host, self.server_port)):
-                i = i+1
+                i = i + 1
                 self.sender_window.sending_progress(buf_size)
                 data = audio.read(buf_size)
                 time.sleep(0.01)
@@ -80,7 +70,6 @@ class Client(Thread):
 
     def receive_audio(self, audio_name, audio_format, sample_width, channels, rate):
         audio = open(audio_name + '1.' + audio_format, 'wb')
-        audio_size = path.getsize(audio.name)
         p = pyaudio.PyAudio()
         stream = p.open(format=p.get_format_from_width(sample_width),
                         channels=channels,
@@ -91,18 +80,14 @@ class Client(Thread):
         i = 0
         for child in self.sender_window.winfo_children():
             child.destroy()
-        # self.sender_window.reciving_audio(audio_size,"Reciving File")
         try:
             while data:
-                print("hey?")
                 audio.write(data)
                 stream.write(data)
                 i = i + 1
-                # self.sender_window.reciving_progress(buf_size)
                 self.udp_soc.settimeout(1)
                 data, address = self.udp_soc.recvfrom(buf_size)
         except socket.timeout:
-            print('bye')
             stream.stop_stream()
             stream.close()
             audio.close()
@@ -155,7 +140,6 @@ class Client(Thread):
             self.connected = False
 
     def get_request(self):
-        # self.reciver_window.sender_window('reciver : ')
         buf = b''
         while len(buf) < 4:
             buf += self.tcp_soc.recv(4 - len(buf))
@@ -226,7 +210,7 @@ class Client(Thread):
         self.sender_window.client_window(self)
 
         while True:
-            if self.choice !='':
+            if self.choice != '':
                 break
 
         for child in self.sender_window.winfo_children():
@@ -240,7 +224,7 @@ class Client(Thread):
             # if no client repeat until you get one!
             while not len(client_list):
                 print('-------no client-------')
-                self.sender_window.client_window(self,'-------no client-------')
+                self.sender_window.client_window(self, '-------no client-------')
                 while True:
                     if self.choice != '':
                         break
@@ -257,20 +241,15 @@ class Client(Thread):
                 while True:
                     if self.client_address_choice != '':
                         break
-                print('--------client list-------' ,self.client_address_choice)
-                # for i in range(0, len(client_list)):
-                #     print(str(i + 1) + '.', client_list[i])
-
-                # choice = input(str(self.my_port) + " : which client you want to sent audio to?"
-                #                                    "[enter the number or enter 'n' if you don't want to]\n")
+                print('--------client list-------', self.client_address_choice)
 
                 if int(self.client_address_choice) > 0:
                     selected_client = client_list[int(self.client_address_choice) - 1]
                     self.send(selected_client)
 
                 else:
-                    self.choice=0
-                self.client_address_choice=''
+                    self.choice = 0
+                self.client_address_choice = ''
 
         for child in self.sender_window.winfo_children():
             child.destroy()
@@ -281,20 +260,17 @@ class Client(Thread):
             print(self.my_port, "ok so wait for someone to send you request!")
             self.receive()
 
-
-
     def client_list_yes(self):
-        print("here")
-        self.choice='y'
+        self.choice = 'y'
 
     def client_list_no(self):
         self.choice = 0
 
     def accept_req(self):
-        self.request_ans='y'
+        self.request_ans = 'y'
 
     def decline_req(self):
-        self.request_ans='n'
+        self.request_ans = 'n'
 
     def client_list_choice(self, var):
         self.client_address_choice = var.get()
