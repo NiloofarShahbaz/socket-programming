@@ -3,12 +3,12 @@ from tkinter import ttk
 from PIL import ImageTk, Image
 from functools import partial
 from tkinter import messagebox
-import Queue
+# import Queue
 
 class Window(Frame):
 
     # Define settings upon initialization. Here you can specify
-    def __init__(self, master, name ,q):
+    def __init__(self, master, name):
         # parameters that you want to send through the Frame class.
         Frame.__init__(self, master)
 
@@ -16,7 +16,7 @@ class Window(Frame):
         self.master = master
 
         self.x=0
-        self.queue=q
+        # self.queue=q
 
         # changing the title of our master widget
         self.master.title(name)

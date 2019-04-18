@@ -4,7 +4,7 @@ from client import Client
 from threading import Thread
 from tkinter import *
 from GUI import Window
-import Queue
+# import Queue
 
 def client():
     global id
