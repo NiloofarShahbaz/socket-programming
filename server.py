@@ -6,15 +6,14 @@ import json
 import struct
 from copy import deepcopy
 import random
-from pydub.playback import play
 import threading
 
-buf_size = 2048
+buf_size = 1024
 
 class Server(Thread):
 
     def __init__(self):
-        super().__init__()
+        Thread.__init__(self)
         self.host = '127.0.0.1'
         self.port = random.randrange(1024, 9999)
         self.client_list = []
@@ -151,9 +150,9 @@ class Server(Thread):
     def handle_udp_messages(self, sending_client_address, receiving_client_address):
         # get udp messages
         # print('id:', threading.current_thread().ident)
-        # x = random.randrange(0, 100)
-        # file = str(x) + '.wav'
-        # audio = open(file, 'wb')
+        x = random.randrange(0, 100)
+        file = str(x) + '.wav'
+        audio = open(file, 'wb')
 
         # frames = []
         data, address = self.udp_soc.recvfrom(buf_size)
@@ -162,13 +161,13 @@ class Server(Thread):
             while data:
                 if address == sending_client_address and (sending_client_address, receiving_client_address, True) in \
                         self.sending_receiving_list:
-                    # audio.write(data)
+                    audio.write(data)
                     self.udp_soc.sendto(data, receiving_client_address)
                     self.udp_soc.settimeout(1)
                     data, address = self.udp_soc.recvfrom(buf_size)
                     # frames.append(data)
         except socket.timeout:
             print(threading.current_thread().ident,'bye')
-            # audio.close()
+            audio.close()
             self.sending_receiving_list.remove((sending_client_address, receiving_client_address, True))
 
