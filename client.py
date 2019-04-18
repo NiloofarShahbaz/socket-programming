@@ -63,6 +63,7 @@ class Client(Thread):
         stream.close()
         p.terminate()
 
+
         wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
         wf.setnchannels(CHANNELS)
         wf.setsampwidth(p.get_sample_size(FORMAT))
@@ -70,21 +71,25 @@ class Client(Thread):
         wf.writeframes(b''.join(frames))
         wf.close()
 
+        self.receive_audio()
+
     def receive_audio(self):
         WAVE_OUTPUT_FILENAME = "output_final.wav"
         frames=[]
         CHUNK = 1024
         FORMAT = pyaudio.paInt16
         CHANNELS = 1
-        RATE = 24100
+        RATE = 44100
 
         p = pyaudio.PyAudio()
+        print "before"
         stream = p.open(format=FORMAT,
                         channels=CHANNELS,
                         rate=RATE,
                         output=True,
                         frames_per_buffer=CHUNK)
         data, address = self.udp_soc.recvfrom(buf_size)
+        print "after",data
 
         try:
             while data:
@@ -93,7 +98,6 @@ class Client(Thread):
                 data, address = self.udp_soc.recvfrom(buf_size)
         except socket.timeout:
             print('bye')
-            self.udp_soc.close()
             wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(p.get_sample_size(FORMAT))
@@ -105,6 +109,11 @@ class Client(Thread):
             stream.stop_stream()
             stream.close()
             p.terminate()
+            choice=raw_input("do you want to answer? y/n \n")
+            if choice=='y':
+                self.send_audio()
+            else:
+                self.udp_soc.close()
 
     def request_to_send(self, receiving_client_address):
 

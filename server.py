@@ -150,9 +150,6 @@ class Server(Thread):
     def handle_udp_messages(self, sending_client_address, receiving_client_address):
         # get udp messages
         # print('id:', threading.current_thread().ident)
-        x = random.randrange(0, 100)
-        file = str(x) + '.wav'
-        audio = open(file, 'wb')
 
         # frames = []
         data, address = self.udp_soc.recvfrom(buf_size)
@@ -161,13 +158,11 @@ class Server(Thread):
             while data:
                 if address == sending_client_address and (sending_client_address, receiving_client_address, True) in \
                         self.sending_receiving_list:
-                    audio.write(data)
                     self.udp_soc.sendto(data, receiving_client_address)
                     self.udp_soc.settimeout(1)
                     data, address = self.udp_soc.recvfrom(buf_size)
                     # frames.append(data)
         except socket.timeout:
             print(threading.current_thread().ident,'bye')
-            audio.close()
             self.sending_receiving_list.remove((sending_client_address, receiving_client_address, True))
 
