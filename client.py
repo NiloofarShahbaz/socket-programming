@@ -8,6 +8,7 @@ import pyaudio
 import time
 import wave
 import threading
+import traceback
 
 buf_size = 1024
 
@@ -23,17 +24,27 @@ class Client(Thread):
         self.tcp_soc.bind((self.server_host, self.my_port))
         self.udp_soc.bind((self.server_host, self.my_port))
         self.connected = False
+        self.state = 0
+        self.ready = False
+        self.message = {}
 
     def send(self, receiving_client_address):
+        self.state = 2
         file_path = input(str(self.my_port) + " : input file:\n")
-        client_answer = self.request_to_send(receiving_client_address, file_path)
+        self.request_to_send(receiving_client_address, file_path)
+        client_answer = self.handle_receive_tcp()
         if client_answer is None:
             return
         if client_answer == 'accept':
             self.send_audio(file_path)
 
     def receive(self):
-        audio_name, audio_format, sample_width, channels, rate = self.get_request()
+        self.state = 3
+        data = self.handle_receive_tcp()
+        while data is None:
+            data = self.handle_receive_tcp()
+        audio_name, audio_format, sample_width, channels, rate = data
+        self.get_request()
 
         if audio_name:
             self.receive_audio(audio_name, audio_format, sample_width, channels, rate)
@@ -99,56 +110,20 @@ class Client(Thread):
         packet = length + packet
         self.tcp_soc.sendall(packet)
 
-        # wait for reply
-        buf = b''
-        while len(buf) < 4:
-            buf += self.tcp_soc.recv(4 - len(buf))
-        length = struct.unpack('!I', buf)[0]
-
-        buf = b''
-        while len(buf) < length:
-            buf += self.tcp_soc.recv(length - len(buf))
-
-        msg = json.loads(buf.decode('utf-8'))
-        print(self.my_port, 'Server -->', msg)
-        if msg.get('request') == 'AcceptRequest':
-            client_answer = msg.get('answer')
-            return client_answer
+    def get_request(self):
+        choice = input(str(self.my_port) + " : do you accept this audio?[y/n]\n")
+        if choice == 'y':
+            msg = {'request': 'AcceptRequest',
+                   'answer': 'accept'
+                   }
+            packet = json.dumps(msg).encode('utf-8')
+            length = struct.pack('!I', len(packet))
+            packet = length + packet
+            self.tcp_soc.sendall(packet)
+            return True
         else:
             self.connected = False
-
-    def get_request(self):
-        buf = b''
-        while len(buf) < 4:
-            buf += self.tcp_soc.recv(4 - len(buf))
-        length = struct.unpack('!I', buf)[0]
-
-        buf = b''
-        while len(buf) < length:
-            buf += self.tcp_soc.recv(length - len(buf))
-        msg = json.loads(buf.decode('utf-8'))
-        print(self.my_port, ': Server -->', msg)
-
-        if msg.get('request') == 'RequestToSend':
-            choice = input(str(self.my_port) + " : do you accept this audio?[y/n]\n")
-            if choice == 'y':
-                audio_name = msg.get('audio_name')
-                audio_format = msg.get('audio_format')
-                sample_width = msg.get('pyaudio_sample_width')
-                channels = msg.get('pyaudio_channels')
-                rate = msg.get('pyaudio_framerate')
-                msg = {'request': 'AcceptRequest',
-                       'answer': 'accept'
-                       }
-                packet = json.dumps(msg).encode('utf-8')
-                length = struct.pack('!I', len(packet))
-                packet = length + packet
-                self.tcp_soc.sendall(packet)
-
-                return audio_name, audio_format, sample_width, channels, rate
-            else:
-                self.connected = False
-                return
+            return False
 
     def get_client_list(self):
         msg = {'request': 'GetClintList'}
@@ -157,37 +132,81 @@ class Client(Thread):
         packet = length + packet
         self.tcp_soc.sendall(packet)
 
-        buf = b''
-        while len(buf) < 4:
-            buf += self.tcp_soc.recv(4 - len(buf))
-        length = struct.unpack('!I', buf)[0]
+    def get_tcp(self):
+        while True:
+            buf = b''
+            while len(buf) < 4:
+                buf += self.tcp_soc.recv(4 - len(buf))
+            length = struct.unpack('!I', buf)[0]
 
-        buf = b''
-        while len(buf) < length:
-            buf += self.tcp_soc.recv(length - len(buf))
-        msg = json.loads(buf.decode('utf-8'))
-        print(self.my_port, ': Server -->', msg)
+            buf = b''
+            while len(buf) < length:
+                buf += self.tcp_soc.recv(length - len(buf))
+            self.message = json.loads(buf.decode('utf-8'))
+            print(self.my_port, ': Server -->', self.message)
+            self.ready = True
 
-        client_list = msg.get('ReplyClientList')
+            if 'AutoClientList' in self.message:
+                client_list = self.message.get('AutoClientList')
+                print('--------Auto client list-------')
+                for i in range(0, len(client_list)):
+                    print(str(i + 1) + '.', client_list[i])
+                self.ready = False
 
-        return client_list
+    def handle_receive_tcp(self):
+        while not self.ready:
+            pass
+
+        print('fkhdjkhk', self.message)
+
+        if 'ReplyClientList' in self.message and self.state is 1:
+            client_list = self.message.get('ReplyClientList')
+            self.ready = False
+            return client_list
+
+        elif 'request' in self.message:
+            if self.message.get('request') == 'AcceptRequest' and self.state is 2:
+                client_answer = self.message.get('answer')
+                self.ready = False
+                return client_answer
+
+            elif self.message.get('request') == 'RequestToSend' and self.state is 3:
+                audio_name = self.message.get('audio_name')
+                audio_format = self.message.get('audio_format')
+                sample_width = self.message.get('pyaudio_sample_width')
+                channels = self.message.get('pyaudio_channels')
+                rate = self.message.get('pyaudio_framerate')
+                self.ready = False
+                return audio_name, audio_format, sample_width, channels, rate
+        else:
+            self.ready = False
+            self.connected = False
 
     def run(self):
-        # while True:
         self.tcp_soc.connect((self.server_host, self.server_port))
         self.connected = True
         print(self.my_port, ": you are now connected to server")
 
+        try:
+            Thread(target=self.get_tcp).start()
+        except:
+            print("Auto client list Thread did not start.")
+            traceback.print_exc()
+
         choice = input(str(self.my_port) + ' : do you want to get the connected client list?[y/n]\n')
         flag = False
         if choice == 'y':
-            client_list = self.get_client_list()
+            self.state = 1
+            self.get_client_list()
+            client_list = self.handle_receive_tcp()
+
             # if no client repeat until you get one!
             while not len(client_list):
                 print('-------no client-------')
                 choice = input(str(self.my_port) + ' : do you want to get the connected client list?[y/n]\n')
                 if choice == 'y':
-                    client_list = self.get_client_list()
+                    self.get_client_list()
+                    client_list = self.handle_receive_tcp()
                 elif choice == 'n':
                     flag = True
                     break

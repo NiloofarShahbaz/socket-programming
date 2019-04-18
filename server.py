@@ -8,9 +8,11 @@ from copy import deepcopy
 import random
 from pydub.playback import play
 import threading
+import time
 from queue import Queue
 
 buf_size = 1024
+
 
 class Server(Thread):
 
@@ -54,6 +56,23 @@ class Server(Thread):
             except:
                 print("TCP Thread did not start.")
                 traceback.print_exc()
+
+            try:
+                Thread(target=self.auto_send_client_list, args=(connection, client_address)).start()
+            except:
+                print("Auto client list Thread did not start.")
+                traceback.print_exc()
+
+    def auto_send_client_list(self, connection, client_address):
+        while True:
+            time.sleep(10)
+            print('starrrrrteddddddd!')
+            client_list_copy = deepcopy(self.client_list)
+            client_list_copy.remove(client_address)
+            packet = json.dumps({'AutoClientList': client_list_copy}).encode('utf-8')
+            length = struct.pack('!I', len(packet))
+            packet = length + packet
+            connection.sendall(packet)
 
     def handle_tcp_messages(self, connection, client_address):
         is_active = True
