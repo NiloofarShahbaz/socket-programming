@@ -156,16 +156,18 @@ class Server(Thread):
                 connection.close()
 
     def receive_udp(self, queue):
-        data, address = self.udp_soc.recvfrom(buf_size)
-        try:
-            while data:
-                self.signal = True
-                queue.put((data, address))
-                data, address = self.udp_soc.recvfrom(buf_size)
-                self.udp_soc.settimeout(2)
-        except socket.timeout:
-            self.signal = False
-            print('byee')
+        while True:
+            data, address = self.udp_soc.recvfrom(buf_size)
+            try:
+                while data:
+                    self.signal = True
+                    queue.put((data, address))
+                    data, address = self.udp_soc.recvfrom(buf_size)
+                    self.udp_soc.settimeout(2)
+            except socket.timeout:
+                self.signal = False
+                self.udp_soc.settimeout(None)
+                print('audio sent!!')
 
     def handle_udp_messages(self):
         # get udp messages
@@ -177,17 +179,25 @@ class Server(Thread):
             print("Auto client list Thread did not start.")
             traceback.print_exc()
 
-        audio = open('r.wav', 'wb')
+        while True:
+            audio = open('rr.wav', 'wb')
 
-        while not self.signal:
-            pass
-        while self.signal:
-            while not queue.empty():
-                data, address = queue.get()
-                for element in self.sending_receiving_list:
-                    if element[0] == address and element[2] is True:
-                        receiving_client_address = element[1]
-                        audio.write(data)
-                        self.udp_soc.sendto(data, receiving_client_address)
-        audio.close()
+            while not self.signal:
+                pass
+            print 'meh'
+            print self.sending_receiving_list
+            while self.signal:
+                while not queue.empty():
+                    data, address = queue.get()
+                    print address
+                    for element in self.sending_receiving_list:
+                        if (element[0] == address or element[1] == address) and element[2] is True:
+                            if element[0] == address:
+                                receiving_client_address = element[1]
+                            else:
+                                print "i'm hereeee"
+                                receiving_client_address = element[0]
+                            audio.write(data)
+                            self.udp_soc.sendto(data, receiving_client_address)
+            audio.close()
 
