@@ -7,7 +7,6 @@ import random
 import pyaudio
 import time
 import wave
-import threading
 
 buf_size = 1024
 
@@ -44,7 +43,6 @@ class Client(Thread):
         while data:
             if self.udp_soc.sendto(data, (self.server_host, self.server_port)):
                 data = audio.read(buf_size)
-                time.sleep(0.01)
         audio.close()
 
     def receive_audio(self, audio_name, audio_format, sample_width, channels, rate):
@@ -65,7 +63,6 @@ class Client(Thread):
                 self.udp_soc.settimeout(1)
                 data, address = self.udp_soc.recvfrom(buf_size)
         except socket.timeout:
-            print('bye')
             stream.stop_stream()
             stream.close()
             audio.close()
@@ -173,7 +170,6 @@ class Client(Thread):
         return client_list
 
     def run(self):
-        # while True:
         self.tcp_soc.connect((self.server_host, self.server_port))
         self.connected = True
         print(self.my_port, ": you are now connected to server")
