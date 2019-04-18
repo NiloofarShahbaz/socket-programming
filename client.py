@@ -1,15 +1,19 @@
 import socket
 import json
 import struct
-from os import path
 from threading import Thread
 import random
 import pyaudio
-import time
 import wave
-import threading
 
 buf_size = 1024
+CHUNK = 1024
+FORMAT = pyaudio.paInt16
+CHANNELS = 1
+RATE = 44100
+RECORD_SECONDS = 4
+WAVE_SENDING_OUTPUT_FILENAME = "output.wav"
+WAVE_RECEIVING_OUTPUT_FILENAME = "output_final.wav"
 
 
 class Client(Thread):
@@ -36,12 +40,6 @@ class Client(Thread):
             self.receive_audio()
 
     def send_audio(self):
-        CHUNK = 1024
-        FORMAT = pyaudio.paInt16
-        CHANNELS = 1
-        RATE = 44100
-        RECORD_SECONDS = 4
-        WAVE_OUTPUT_FILENAME = "output.wav"
         p = pyaudio.PyAudio()
 
         stream = p.open(format=FORMAT,
@@ -50,35 +48,31 @@ class Client(Thread):
                         input=True,
                         frames_per_buffer=CHUNK)
 
-        print("* recording")
+        print(self.my_port, ": * recording")
         frames = []
         for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
             data = stream.read(CHUNK)
             frames.append(data)
             self.udp_soc.sendto(data, (self.server_host, self.server_port))
 
-        print("* done recording")
+        print(self.my_port, ": * done recording")
 
         stream.stop_stream()
         stream.close()
         p.terminate()
 
-        wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
+        wf = wave.open(WAVE_SENDING_OUTPUT_FILENAME, 'wb')
         wf.setnchannels(CHANNELS)
         wf.setsampwidth(p.get_sample_size(FORMAT))
         wf.setframerate(RATE)
         wf.writeframes(b''.join(frames))
         wf.close()
 
+        self.udp_soc.settimeout(20)
         self.receive_audio()
 
     def receive_audio(self):
-        WAVE_OUTPUT_FILENAME = "output_final.wav"
-        frames=[]
-        CHUNK = 1024
-        FORMAT = pyaudio.paInt16
-        CHANNELS = 1
-        RATE = 44100
+        frames = []
 
         p = pyaudio.PyAudio()
         stream = p.open(format=FORMAT,
@@ -86,33 +80,34 @@ class Client(Thread):
                         rate=RATE,
                         output=True,
                         frames_per_buffer=CHUNK)
-
-        self.udp_soc.settimeout(None)
-        data, address = self.udp_soc.recvfrom(buf_size)
-
         try:
-            while data:
-                frames.append(data)
-                self.udp_soc.settimeout(1)
-                data, address = self.udp_soc.recvfrom(buf_size)
+            print 'aaaaaaaaaa', self.udp_soc.gettimeout()
+            data, address = self.udp_soc.recvfrom(buf_size)
+            try:
+                while data:
+                    frames.append(data)
+                    self.udp_soc.settimeout(1)
+                    data, address = self.udp_soc.recvfrom(buf_size)
+            except socket.timeout:
+                wf = wave.open(WAVE_RECEIVING_OUTPUT_FILENAME, 'wb')
+                wf.setnchannels(CHANNELS)
+                wf.setsampwidth(p.get_sample_size(FORMAT))
+                wf.setframerate(RATE)
+                wf.writeframes(b''.join(frames))
+                wf.close()
+                for frame in frames:
+                    stream.write(frame)
+                stream.stop_stream()
+                stream.close()
+                p.terminate()
+                choice = raw_input(str(self.my_port) + "do you want to answer? y/n \n")
+                if choice == 'y':
+                    self.send_audio()
+                else:
+                    self.udp_soc.close()
         except socket.timeout:
-            print('received!')
-            wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
-            wf.setnchannels(CHANNELS)
-            wf.setsampwidth(p.get_sample_size(FORMAT))
-            wf.setframerate(RATE)
-            wf.writeframes(b''.join(frames))
-            wf.close()
-            for frame in frames:
-                stream.write(frame)
-            stream.stop_stream()
-            stream.close()
-            p.terminate()
-            choice = raw_input("do you want to answer? y/n \n")
-            if choice == 'y':
-                self.send_audio()
-            else:
-                self.udp_soc.close()
+            print 'ok bye :('
+            self.udp_soc.close()
 
     def request_to_send(self, receiving_client_address):
 
@@ -220,7 +215,7 @@ class Client(Thread):
                     print(str(i + 1) + '.', client_list[i])
 
                 choice = str(input(str(self.my_port) + " : which client you want to sent audio to?"
-                                                   "[enter the number or enter 'n' if you don't want to]\n"))
+                                                       "[enter the number or enter 'n' if you don't want to]\n"))
 
                 if choice.isalnum():
                     selected_client = client_list[int(float(choice)) - 1]

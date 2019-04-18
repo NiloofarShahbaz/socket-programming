@@ -1,18 +1,16 @@
 import socket
-import pyaudio
 from threading import Thread
 import traceback
 import json
 import struct
 from copy import deepcopy
 import random
-import threading
 from queue import Queue
 
 buf_size = 1024
 
-class Server(Thread):
 
+class Server(Thread):
     def __init__(self):
         Thread.__init__(self)
         self.host = '127.0.0.1'
@@ -45,7 +43,7 @@ class Server(Thread):
         while True:
             connection, client_address = self.tcp_soc.accept()
             self.client_list.append(client_address)
-            self.connection_list[client_address] = [connection, self.udp_soc]
+            self.connection_list[client_address] = connection
             print("server: Connected with " + client_address[0] + ":" + str(client_address[1]))
 
             try:
@@ -88,7 +86,7 @@ class Server(Thread):
                     length = struct.pack('!I', len(packet))
                     packet = length + packet
                     dest = (to[0], to[1])
-                    self.connection_list[dest][0].sendall(packet)
+                    self.connection_list[dest].sendall(packet)
                     self.sending_receiving_list.append((client_address, dest, False))
                 else:
                     msg = {
@@ -116,15 +114,7 @@ class Server(Thread):
                             i = self.sending_receiving_list.index((to, client_address, False))
                             # update the sending receiving list
                             self.sending_receiving_list[i] = (to, client_address, True)
-                            self.connection_list[to][0].sendall(packet)
-                            # if sample_width is not None and channels is not None and rate is not None:
-                            #
-                            # try:
-                            #     print('yesssssssssssss')
-                            #     Thread(target=self.handle_udp_messages, args=(to, client_address, queue)).start()
-                            # except:
-                            #     print("UDP Thread did not start.")
-                            #     traceback.print_exc()
+                            self.connection_list[to].sendall(packet)
                         else:
                             msg = {
                                 'request': 'InvalidRequest'
@@ -156,18 +146,20 @@ class Server(Thread):
                 connection.close()
 
     def receive_udp(self, queue):
-        while True:
-            data, address = self.udp_soc.recvfrom(buf_size)
-            try:
-                while data:
-                    self.signal = True
-                    queue.put((data, address))
-                    data, address = self.udp_soc.recvfrom(buf_size)
-                    self.udp_soc.settimeout(2)
-            except socket.timeout:
-                self.signal = False
-                self.udp_soc.settimeout(None)
-                print('audio sent!!')
+        try:
+            while True:
+                data, address = self.udp_soc.recvfrom(buf_size)
+                try:
+                    while data:
+                        self.signal = True
+                        queue.put((data, address))
+                        data, address = self.udp_soc.recvfrom(buf_size)
+                        self.udp_soc.settimeout(2)
+                except socket.timeout:
+                    self.signal = False
+                    self.udp_soc.settimeout(20)
+        except socket.timeout:
+            print 'byeeeeeeeeeeeee'
 
     def handle_udp_messages(self):
         # get udp messages
@@ -180,24 +172,16 @@ class Server(Thread):
             traceback.print_exc()
 
         while True:
-            audio = open('rr.wav', 'wb')
-
             while not self.signal:
                 pass
-            print 'meh'
-            print self.sending_receiving_list
             while self.signal:
                 while not queue.empty():
                     data, address = queue.get()
-                    print address
                     for element in self.sending_receiving_list:
                         if (element[0] == address or element[1] == address) and element[2] is True:
                             if element[0] == address:
                                 receiving_client_address = element[1]
                             else:
-                                print "i'm hereeee"
                                 receiving_client_address = element[0]
-                            audio.write(data)
                             self.udp_soc.sendto(data, receiving_client_address)
-            audio.close()
 
